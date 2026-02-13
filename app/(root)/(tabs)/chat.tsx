@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const chat = () => {
   return (
-    <SafeAreaView>
+    <SafeAreaView className='flex-1 pb-24'>
       <View>
         <Text>chat</Text>
       </View>

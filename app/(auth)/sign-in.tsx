@@ -2,9 +2,11 @@ import CustomButton from '@/components/CustomButton';
 import InputField from '@/components/InputField';
 import OAuth from '@/components/OAuth';
 import { icons, images } from '@/constants';
-import { Link } from 'expo-router';
+import { useSignIn } from '@clerk/clerk-expo';
+import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Alert,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -12,18 +14,45 @@ import {
   ScrollView,
   Text,
   TouchableWithoutFeedback,
-  View,
+  View
 } from 'react-native';
 
 const SignIn = () => {
+   const { signIn, setActive, isLoaded } = useSignIn()
+   const router = useRouter()
   const [form, setForm] = useState({
     email: '',
     password: '',
   });
 
-  const onSignInPress = () => {
-    // signup logic
-  };
+   // Handle the submission of the sign-in form
+  const onSignInPress = React.useCallback(async () => {
+    if (!isLoaded) return
+
+    // Start the sign-in process using the email and password provided
+    try {
+      const signInAttempt = await signIn.create({
+        identifier: form.email,
+        password: form.password,
+      })
+
+      // If sign-in process is complete, set the created session as active
+      // and redirect the user. Go to index first so it sees updated auth and redirects to home.
+      if (signInAttempt.status === 'complete') {
+        await setActive({
+          session: signInAttempt.createdSessionId,
+        })
+        router.replace('/')
+      } else {
+        // See https://clerk.com/docs/custom-flows/error-handling for more info on error handling
+        console.log(JSON.stringify(signInAttempt, null, 2));
+        Alert.alert("Error", "Log in failed. Please try again.");
+      }
+    } catch (err:any) {
+     console.log(JSON.stringify(err, null, 2));
+      Alert.alert("Error", err.errors[0].longMessage);
+    }
+  }, [isLoaded, form])
 
   return (
     <KeyboardAvoidingView

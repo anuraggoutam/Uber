@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const profile = () => {
   return (
-    <SafeAreaView>
+    <SafeAreaView className='flex-1 pb-24'>
       <View>
         <Text>profile</Text>
       </View>
