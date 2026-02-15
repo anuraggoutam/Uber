@@ -2,9 +2,10 @@ import CustomButton from '@/components/CustomButton';
 import InputField from '@/components/InputField';
 import OAuth from '@/components/OAuth';
 import { icons, images } from '@/constants';
-import { useSignUp } from '@clerk/clerk-expo';
+import { fetchAPI } from '@/lib/fetch';
+import { useAuth, useSignUp } from '@clerk/clerk-expo';
 import { Link, router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
@@ -16,12 +17,11 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { ReactNativeModal } from "react-native-modal";
-
+import { ReactNativeModal } from 'react-native-modal';
 
 const SignUp = () => {
-
-  const { isLoaded, signUp, setActive } = useSignUp()
+  const { isSignedIn } = useAuth();
+  const { isLoaded, signUp, setActive } = useSignUp();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [form, setForm] = useState({
@@ -32,75 +32,94 @@ const SignUp = () => {
   const [verification, setVerification] = useState({
     state: 'default',
     error: '',
-    code: ''
+    code: '',
   });
 
+  // Redirect if already signed in (session_exists)
+  useEffect(() => {
+    if (isSignedIn) {
+      router.replace('/(root)/(tabs)/home');
+    }
+  }, [isSignedIn]);
 
   // Handle submission of sign-up form
   const onSignUpPress = async () => {
-    if (!isLoaded) return
+    if (!isLoaded) return;
 
     // Start sign-up process using email and password provided
     try {
       await signUp.create({
         emailAddress: form.email,
         password: form.password,
-      })
+      });
 
       // Send user an email with verification code
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
 
       // Set 'pendingVerification' to true to display second form
       // and capture code
       setVerification({
         ...verification,
-        state: 'pending'
-      })
+        state: 'pending',
+      });
     } catch (err: any) {
       console.log(JSON.stringify(err, null, 2));
-      Alert.alert("Error", err.errors[0].longMessage);
+      if (err?.errors?.[0]?.code === 'session_exists') {
+        router.replace('/(root)/(tabs)/home');
+        return;
+      }
+      const message =
+        err?.errors?.[0]?.longMessage ?? err?.message ?? 'Sign up failed';
+      Alert.alert('Error', message);
     }
-  }
+  };
 
   // Handle submission of verification form
   const onPressVerify = async () => {
-    if (!isLoaded) return
+    if (!isLoaded) return;
 
     try {
-      // Use the code the user provided to attempt verification
       const completeSignUp = await signUp.attemptEmailAddressVerification({
         code: verification.code,
-      })
+      });
 
-      // If verification was completed, set the session to active
-      // and redirect the user
-      if (completeSignUp.status === 'complete') {
-        // TODO CReate DATABASE USER
-        await setActive({
-          session: completeSignUp.createdSessionId
-        })
-        setVerification({
-          ...verification,
-          state: 'complete'
-        })
-
-      } else {
-        setVerification({
-          ...verification,
-          error: "Verification failed. Please try again.",
-          state: "failed",
+      if (completeSignUp?.status === 'complete') {
+        await fetchAPI('/(api)/user', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: form.name,
+            email: form.email,
+            clerkId: completeSignUp.createdUserId,
+          }),
         });
+
+        await setActive({ session: completeSignUp.createdSessionId });
+
+        setVerification((prev) => ({
+          ...prev,
+          state: 'complete',
+        }));
+      } else {
+        setVerification((prev) => ({
+          ...prev,
+          error: 'Verification failed. Please try again.',
+          state: 'failed',
+        }));
       }
     } catch (err: any) {
-      setVerification({
-        ...verification,
-        error: err.errors[0].longMessage,
-        state: "failed",
-      });
+      if (err?.errors?.[0]?.code === 'session_exists') {
+        router.replace('/(root)/(tabs)/home');
+        return;
+      }
+      const errorMsg =
+        err?.errors?.[0]?.longMessage ?? err?.message ?? 'Verification failed';
+      setVerification((prev) => ({
+        ...prev,
+        error: errorMsg,
+        state: 'failed',
+      }));
     }
-  }
-
-
+  };
 
   return (
     <KeyboardAvoidingView
@@ -113,10 +132,7 @@ const SignUp = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View className="relative w-full h-[250px]">
-            <Image
-              source={images.signUpCar}
-              className="w-full h-[250px]"
-            />
+            <Image source={images.signUpCar} className="w-full h-[250px]" />
             <Text className="absolute bottom-5 left-5 text-2xl font-JakartaSemiBold text-black">
               Create Your Account
             </Text>
@@ -129,9 +145,7 @@ const SignUp = () => {
               icon={icons.person}
               textContentType="name"
               value={form.name}
-              onChangeText={(value) =>
-                setForm({ ...form, name: value })
-              }
+              onChangeText={(value) => setForm({ ...form, name: value })}
             />
 
             <InputField
@@ -143,9 +157,7 @@ const SignUp = () => {
               autoCorrect={false}
               textContentType="emailAddress"
               value={form.email}
-              onChangeText={(value) =>
-                setForm({ ...form, email: value })
-              }
+              onChangeText={(value) => setForm({ ...form, email: value })}
             />
 
             <InputField
@@ -155,52 +167,76 @@ const SignUp = () => {
               secureTextEntry
               textContentType="newPassword"
               value={form.password}
-              onChangeText={(value) =>
-                setForm({ ...form, password: value })
-              }
+              onChangeText={(value) => setForm({ ...form, password: value })}
             />
 
             <CustomButton
               title="Sign Up"
               onPress={onSignUpPress}
               className="mt-6"
-            /><OAuth />
+            />
+            <OAuth />
 
-            <Link href="/sign-in" className="text-lg text-center text-general-200 mt-10">
-              <Text >
-                Already have an account?
-              </Text>
-              <Text className='text-primary-500'>Sign-in</Text>
+            <Link
+              href="/sign-in"
+              className="text-lg text-center text-general-200 mt-10"
+            >
+              <Text>Already have an account?</Text>
+              <Text className="text-primary-500">Sign-in</Text>
             </Link>
-
           </View>
-          <ReactNativeModal isVisible={verification.state === "pending"}  onModalHide={() => {
-            if (verification.state === "success") {
-              setShowSuccessModal(true);
-            }
-          }} >
-            <View className='bg-white py-9 px-7 rounded-2xl min-h-[300px] '>
-              <Text className='text-2xl font-JakartaExtraBold mb-2'>
+          <ReactNativeModal
+            isVisible={verification.state === 'pending'}
+            onModalHide={() => {
+              if (verification.state === 'complete') {
+                setShowSuccessModal(true);
+              }
+            }}
+          >
+            <View className="bg-white py-9 px-7 rounded-2xl min-h-[300px] ">
+              <Text className="text-2xl font-JakartaExtraBold mb-2">
                 Verification
               </Text>
-              <Text>
-                We&apos;ve sent a verification code to {form.email}
-              </Text>
-              <InputField label='Code' icon={icons.lock} placeholder='12345' value={verification.code}
-                keyboardType='numeric'
-                onChangeText={(value) => setVerification({ ...verification, code: value })} />
+              <Text>We&apos;ve sent a verification code to {form.email}</Text>
+              <InputField
+                label="Code"
+                icon={icons.lock}
+                placeholder="12345"
+                value={verification.code}
+                keyboardType="numeric"
+                onChangeText={(value) =>
+                  setVerification({ ...verification, code: value })
+                }
+              />
               {verification.error && (
-                <Text className='text-red-500 mt-1 text-sm'>{verification.error}</Text>
+                <Text className="text-red-500 mt-1 text-sm">
+                  {verification.error}
+                </Text>
               )}
-              <CustomButton title='Verify Email' className='mt-4 w-full shadow-none bg-success-500' onPress={onPressVerify} />
+              <CustomButton
+                title="Verify Email"
+                className="mt-4 w-full shadow-none bg-success-500"
+                onPress={onPressVerify}
+              />
             </View>
           </ReactNativeModal>
           <ReactNativeModal isVisible={showSuccessModal}>
-            <View className='bg-white px-7 py-9 rounded-2xl min-h-[300px]'>
-              <Image source={images.check} className='w-[110px] h-[110px] mx-auto my-5' />
-              <Text className='text-center text-3xl font-JakartaBold '>Verified</Text>
-              <Text className='text-center text-lg font-JakartaMedium mt-2 '>Your account has been created successfully.</Text>
-              <CustomButton title='Browse Home' className='mt-4 w-full shadow-none' onPress={() => router.replace('/(root)/(tabs)/home')} />
+            <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
+              <Image
+                source={images.check}
+                className="w-[110px] h-[110px] mx-auto my-5"
+              />
+              <Text className="text-center text-3xl font-JakartaBold ">
+                Verified
+              </Text>
+              <Text className="text-center text-lg font-JakartaMedium mt-2 ">
+                Your account has been created successfully.
+              </Text>
+              <CustomButton
+                title="Browse Home"
+                className="mt-4 w-full shadow-none"
+                onPress={() => router.replace('/(root)/(tabs)/home')}
+              />
             </View>
           </ReactNativeModal>
         </ScrollView>

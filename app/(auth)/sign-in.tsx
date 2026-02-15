@@ -3,7 +3,7 @@ import InputField from '@/components/InputField';
 import OAuth from '@/components/OAuth';
 import { icons, images } from '@/constants';
 import { useSignIn } from '@clerk/clerk-expo';
-import { Link, useRouter } from 'expo-router';
+import { Link, router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -18,8 +18,7 @@ import {
 } from 'react-native';
 
 const SignIn = () => {
-   const { signIn, setActive, isLoaded } = useSignIn()
-   const router = useRouter()
+  const { signIn, setActive, isLoaded } = useSignIn();
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -42,17 +41,23 @@ const SignIn = () => {
         await setActive({
           session: signInAttempt.createdSessionId,
         })
-        router.replace('/')
+        router.replace('/');
       } else {
         // See https://clerk.com/docs/custom-flows/error-handling for more info on error handling
         console.log(JSON.stringify(signInAttempt, null, 2));
         Alert.alert("Error", "Log in failed. Please try again.");
       }
-    } catch (err:any) {
-     console.log(JSON.stringify(err, null, 2));
-      Alert.alert("Error", err.errors[0].longMessage);
+    } catch (err: any) {
+      console.log(JSON.stringify(err, null, 2));
+      if (err?.errors?.[0]?.code === 'session_exists') {
+        router.replace('/(root)/(tabs)/home');
+        return;
+      }
+      const message =
+        err?.errors?.[0]?.longMessage ?? err?.message ?? 'Sign in failed';
+      Alert.alert('Error', message);
     }
-  }, [isLoaded, form])
+  }, [isLoaded, form]);
 
   return (
     <KeyboardAvoidingView

@@ -1,12 +1,20 @@
 import CustomButton from '@/components/CustomButton';
 import { onboarding } from '@/constants';
+import { useAuth } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Swiper from 'react-native-swiper';
 
 const Onboarding = () => {
+  const { isSignedIn } = useAuth();
+  // Redirect if already signed in (session_exists)
+  useEffect(() => {
+    if (isSignedIn) {
+      router.replace('/(root)/(tabs)/home');
+    }
+  }, [isSignedIn]);
   const swiperRef = useRef<Swiper>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const isLastSlide = activeIndex === onboarding.length - 1;
