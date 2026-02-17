@@ -2,9 +2,9 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const chat = () => {
+const Chat = () => {
   return (
-    <SafeAreaView className='flex-1 pb-24'>
+    <SafeAreaView className="flex-1 pb-24">
       <View>
         <Text>chat</Text>
       </View>
@@ -12,4 +12,4 @@ const chat = () => {
   );
 };
 
-export default chat;
+export default Chat;

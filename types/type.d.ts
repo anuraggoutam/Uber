@@ -10,6 +10,8 @@ declare interface Driver {
   rating: number;
 }
 
+declare module 'react-native-google-place-autocomplete';
+
 declare interface MarkerData {
   latitude: number;
   longitude: number;
